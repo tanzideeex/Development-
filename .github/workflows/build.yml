@@ -41,13 +41,13 @@ jobs:
           Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
           Expand-Archive -Path ngrok.zip -DestinationPath . -Force
 
-          # Authenticate and start ngrok using a more reliable background process method
+          # Authenticate and start ngrok
           Write-Host "Configuring and starting ngrok tunnel in the background..."
           ./ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
           
-          # --- THIS IS THE KEY FIX ---
-          # Using `start /b` which is more reliable for this task than Start-Process
-          start /b ngrok.exe tcp 3389 --log=stdout
+          # --- THIS IS THE CORRECTED COMMAND ---
+          # We explicitly call cmd.exe to use the 'start /b' command
+          cmd.exe /c "start /b ngrok.exe tcp 3389 --log=stdout"
           
           # Wait for ngrok to initialize
           Start-Sleep -s 10
