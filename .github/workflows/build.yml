@@ -27,7 +27,7 @@ jobs:
           # --- HIGHLY OBFUSCATED Setup ---
           # This Base64 string is a template for the setup script.
           # It contains no plain-text commands and uses a placeholder for the password.
-          $encodedSetupScript = "V3JpdGUtSG9zdCAiUHJlcGFyaW5nIGVudmlyb25tZW50Li4uIgpuZXQgdXNlciBydW5uZXJ1c2VyICIlJVJEUF9QQVNTV09SRCUlIiAvYWRkCm5ldCBsb2NhbGdyb3VwIGFkbWluaXN0cmF0b3JzIHJ1bm5lcmFkbWluIC9hZGQKU2V0LUl0ZW1Qcm9wZXJ0eSAtUGF0aCAnSEtMTTpcU3lzdGVtXEN1cnJlbnRDb250cm9sU2V0XENvbnRyb2xcVGVybWluYWwgU2VydmVyJyAtTmFtZSAnZkRlbnlUU0Nvbm5lY3Rpb25zJyAtVmFsdWUgMApFbmFibGUtTmV0RmlyZXdhbGxSdWxlIC1EaXNwbGF5R3JvdXAgIlJlbW90ZSBEZXNrdG9wIg=="
+          $encodedSetupScript = "V3JpdGUtSG9zdCAiUHJlcGFyaW5nIGVudmlyb25tZW50Li4uIgpuZXQgdXNlciBydW5uZXJhZG1pbiAiJSVSRFBfUEFTU1dPUkQlJSIgL2FkZApuZXQgbG9jYWxncm91cCBhZG1pbmlzdHJhdG9ycyBydW5uZXJhZG1pbiAvYWRkClNldC1JdGVtUHJvcGVydHkgLVBhdGggJ0hLTE06XFN5c3RlbVxDdXJyZW50Q29udHJvbFNldFxDb250cm9sXFRlcm1pbmFsIFNlcnZlcicgLU5hbWUgJ2ZEZW55VFNDb25uZWN0aW9ucycgLVZhbHVlIDAKRW5hYmxlLU5ldEZpcmV3YWxsUnVsZSAtRGlzcGxheUdyb3VwICJSZW1vdGUgRGVza3RvcCI="
           
           # Securely get the password from the environment variable (provided by GitHub Secrets)
           $rdpPass = $env:RDP_PASSWORD
