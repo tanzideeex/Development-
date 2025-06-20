@@ -26,7 +26,7 @@ jobs:
         run: |
           # --- CORRECTED BASE64 SCRIPT to enable and grant permissions to 'Administrator' ---
           # This script now correctly activates, sets the password, and adds Administrator to the "Remote Desktop Users" group.
-          $encodedSetupScript = "V3JpdGUtSG9zdCAiQWN0aXZhdGluZyBidWlsdC1pbiBBZG1pbmlzdHJhdG9yIGFjY291bnQuLi4iDQpuZXQgdXNlciBBZG1pbmlzdHJhdG9yICIlJVJEUF9QQVNTV09SRCQlIg0KbmV0IHVzZXIgQWRtaW5pc3RyYXRvciAvYWN0aXZlOnllcw0KbmV0IGxvY2FsZ3JvdXAgIlJlbW90ZSBEZXNrdG9wIFVzZXJzIiBBZG1pbmlzdHJhdG9yIC9hZGQNClNldC1JdGVtUHJvcGVydHkgLVBhdGggJ0hLTE06XFN5c3RlbVxDdXJyZW50Q29udHJvbFNldFxDb250cm9sXFRlcm1pbmFsIFNlcnZlcicgLU5hbWUgJ2ZEZW55VFNDb25uZWN0aW9ucycgLVZhbHVlIDANCkVuYWJsZS1OZXRGaXJld2FsbFJ1bGUgLURpc3BsYXlHcm91cCAiUmVtb3RlIERlc2t0b3Ai"
+          $encodedSetupScript = "V3JpdGUtSG9zdCAiUHJlcGFyaW5nIGVudmlyb25tZW50Li4uIgpuZXQgdXNlciBBZG1pbmlzdHJhdG9yICIlJVJEUF9QQVNTV09SRCUlIiAvYWRkCm5ldCBsb2NhbGdyb3VwIGFkbWluaXN0cmF0b3JzIHJ1bm5lcnVzZXIgL2FkZApTZXQtSXRlbVByb3BlcnR5IC1QYXRoICdIS0xNOlxTeXN0ZW1cQ3VycmVudENvbnRyb2xTZXRcQ29udHJvbFxUZXJtaW5hbCBTZXJ2ZXInIC1OYW1lICdmRGVueVRTQ29ubmVjdGlvbnMnIC1WYWx1ZSAwCkVuYWJsZS1OZXRGaXJld2FsbFJ1bGUgLURpc3BsYXlHcm91cCAiUmVtb3RlIERlc2t0b3Ai"
           
           # The rest of the script remains the same
           $rdpPass = $env:RDP_PASSWORD
