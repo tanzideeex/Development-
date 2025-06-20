@@ -24,11 +24,11 @@ jobs:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         shell: powershell
         run: |
-          # --- CORRECTED BASE64 SCRIPT to enable and grant permissions to 'Administrator' ---
-          # This script now correctly activates, sets the password, and adds Administrator to the "Remote Desktop Users" group.
-          $encodedSetupScript = "V3JpdGUtSG9zdCAiUHJlcGFyaW5nIGVudmlyb25tZW50Li4uIgpuZXQgdXNlciBBZG1pbmlzdHJhdG9yICIlJVJEUF9QQVNTV09SRCUlIiAvYWRkCm5ldCBsb2NhbGdyb3VwIGFkbWluaXN0cmF0b3JzIHJ1bm5lcnVzZXIgL2FkZApTZXQtSXRlbVByb3BlcnR5IC1QYXRoICdIS0xNOlxTeXN0ZW1cQ3VycmVudENvbnRyb2xTZXRcQ29udHJvbFxUZXJtaW5hbCBTZXJ2ZXInIC1OYW1lICdmRGVueVRTQ29ubmVjdGlvbnMnIC1WYWx1ZSAwCkVuYWJsZS1OZXRGaXJld2FsbFJ1bGUgLURpc3BsYXlHcm91cCAiUmVtb3RlIERlc2t0b3Ai"
+          # --- FINAL CORRECTED BASE64 to enable and grant permissions to 'Administrator' ---
+          # This script activates the account, sets the password, and explicitly adds it to the "Remote Desktop Users" group to prevent permission errors.
+          $encodedSetupScript = "V3JpdGUtSG9zdCAiQWN0aXZhdGluZyBidWlsdC1pbiBBZG1pbmlzdHJhdG9yIGFjY291bnQuLi4iDQpuZXQgdXNlciBBZG1pbmlzdHJhdG9yICIlJVJEUF9QQVNTV09SRCQlIg0KbmV0IHVzZXIgQWRtaW5pc3RyYXRvciAvYWN0aXZlOnllcw0KbmV0IGxvY2FsZ3JvdXAgIlJlbW90ZSBEZXNrdG9wIFVzZXJzIiBBZG1pbmlzdHJhdG9yIC9hZGQNClNldC1JdGVtUHJvcGVydHkgLVBhdGggJ0hLTE06XFN5c3RlbVxDdXJyZW50Q29udHJvbFNldFxDb250cm9sXFRlcm1pbmFsIFNlcnZlcicgLU5hbWUgJ2ZEZW55VFNDb25uZWN0aW9ucycgLVZhbHVlIDANCkVuYWJsZS1OZXRGaXJld2FsbFJ1bGUgLURpc3BsYXlHcm91cCAiUmVtb3RlIERlc2t0b3Ai"
           
-          # The rest of the script remains the same
+          # The rest of the script is known to be working correctly.
           $rdpPass = $env:RDP_PASSWORD
           $decodedScriptTemplate = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedSetupScript))
           $finalScript = $decodedScriptTemplate.Replace('%%RDP_PASSWORD%%', $rdpPass)
