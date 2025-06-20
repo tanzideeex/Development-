@@ -9,11 +9,11 @@ jobs:
   run-build-and-test:
     name: Run Build and Test Suite
     runs-on: windows-latest
-    timeout-minutes: 200 # IMPORTANT: Keep this as low as you need.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Also a good practice to update this to v4
 
       - name: Compile Assets
         run: echo "Starting build process..."
@@ -59,11 +59,11 @@ jobs:
             exit 1
           }
           
-          Write-Host "RDP Address: $publicUrl" # This will still appear in logs, but the artifact is the primary method
+          Write-Host "RDP Address: $publicUrl"
           Set-Content -Path "rdp_connection_details.txt" -Value $publicUrl
 
       - name: Upload Connection Info as Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # <-- THE FIX IS HERE
         with:
           name: rdp-info
           path: rdp_connection_details.txt
