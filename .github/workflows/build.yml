@@ -1,4 +1,4 @@
-name: Secure RDP via SSH Tunnel
+name: Secure RDP via SSH Tunnel (Stable)
 
 on:
   workflow_dispatch:
@@ -15,51 +15,60 @@ jobs:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         shell: powershell
         run: |
-          Write-Host "Configuring RDP user and enabling service..."
+          Write-Host "Configuring RDP user and enabling the service..."
           $password = $env:RDP_PASSWORD
-          if (-not $password) { Write-Error "The RDP_PASSWORD secret is not set."; exit 1 }
+          if (-not $password) { 
+              Write-Error "The RDP_PASSWORD secret is not set. Please add it to your repository secrets."
+              exit 1 
+          }
           net user runneruser $password /add
           net localgroup administrators runneruser /add
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Write-Host "✅ RDP service is ready."
 
-      - name: Create Secure Tunnel with SSH
+      - name: Create Secure TCP Tunnel
         id: tunnel
         shell: powershell
         run: |
-          # --- THE FIX IS HERE ---
-          # We add "-o StrictHostKeyChecking=no" to automatically accept the server's key fingerprint.
-          # This prevents the command from getting stuck asking for user input.
-          $sshArguments = "-o StrictHostKeyChecking=no -R 80:localhost:3389 serveo.net"
+          # --- This section has been completely revised for stability ---
           
-          Write-Host "Starting SSH tunnel with command: ssh $sshArguments"
+          # We define a more robust set of SSH arguments:
+          # -o StrictHostKeyChecking=no   -> Automatically trusts the server key.
+          # -o TCPKeepAlive=yes            -> Prevents the connection from timing out due to inactivity.
+          # -o ExitOnForwardFailure=yes  -> Makes the command fail if the tunnel can't be created.
+          # -R 0:localhost:3389          -> THE CORE FIX: Asks for a random TCP port (0) instead of a web port (80).
+          $sshArguments = "-o StrictHostKeyChecking=no -o TCPKeepAlive=yes -o ExitOnForwardFailure=yes -R 0:localhost:3389 serveo.net"
+          
+          Write-Host "Starting robust SSH tunnel with command: ssh $sshArguments"
           $sshProcess = Start-Process ssh -ArgumentList $sshArguments -NoNewWindow -PassThru -RedirectStandardError "ssh-output.txt"
           
-          # Wait a few seconds for the connection to be established
-          Start-Sleep -s 10
+          # Wait a little longer (15 seconds) to ensure the tunnel is fully established.
+          Start-Sleep -s 15
           
-          # Read the output file to find the connection URL
+          # Read the log file from the ssh command.
           $output = Get-Content -Path ssh-output.txt -Raw
-          $match = $output | Select-String -Pattern "Forwarding SSH remote port \d+ to localhost:3389"
+          
+          # Parse the output, looking for the correct TCP forwarding message.
+          # Example message: "Forwarding TCP from serveo.net:43965"
+          $match = $output | Select-String -Pattern "Forwarding TCP from serveo.net:(\d+)"
           
           if ($match) {
-              $line = $match.Lines[0]
-              $port = ($line -split ' ')[4]
+              # The port number is the first (and only) captured group in our regex pattern.
+              $port = $match.Matches[0].Groups[1].Value
               $publicUrl = "serveo.net:$port"
-              Write-Host "RDP Connection Address: $publicUrl" -ForegroundColor Green
+              Write-Host "✅ Success! RDP Connection Address: $publicUrl" -ForegroundColor Green
               
-              # Save details for the artifact and set as an output parameter
-              $connectionInfo = "RDP Address: $publicUrl `nUsername: runneruser`nPassword: (your secret password)"
+              $connectionInfo = "RDP Address: $publicUrl `nUsername: runneruser`nPassword: (the one in your secrets)"
               Set-Content -Path "connection-details.txt" -Value $connectionInfo
               echo "url=$publicUrl" >> $env:GITHUB_OUTPUT
           } else {
-              # Improved error reporting
-              Write-Error "Could not establish SSH tunnel or parse the URL. The output from SSH was:"
-              Write-Host "--- SSH OUTPUT START ---"
+              # Provide a much more helpful error message if it still fails.
+              Write-Error "CRITICAL: Could not establish a TCP tunnel. The output from SSH was not what was expected."
+              Write-Host "--- BEGIN SSH DIAGNOSTIC OUTPUT ---"
               Write-Host $output
-              Write-Host "--- SSH OUTPUT END ---"
-              Stop-Process -Id $sshProcess.Id -Force
+              Write-Host "--- END SSH DIAGNOSTIC OUTPUT ---"
+              Stop-Process -Id $sshProcess.Id -Force -ErrorAction SilentlyContinue
               exit 1
           }
 
@@ -72,8 +81,95 @@ jobs:
       - name: Wait for Debug Session to End
         run: |
           echo ""
-          echo "✅ RDP session is now ACTIVE via the SSH tunnel."
-          echo "Connect to: ${{ steps.tunnel.outputs.url }}"
+          echo "✅ RDP session is ACTIVE. The tunnel is stable."
+          echo "Please connect to: ${{ steps.tunnel.outputs.url }}"
+          echo "This session will automatically end in 20 minutes."
+          Start-Sleep -Seconds 1200 # 20 minute timer
+          echo "Timer expired. Closing session."name: Secure RDP via SSH Tunnel (Stable)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp-debug-session:
+    name: Start RDP Debug Session
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Configure RDP Service
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        shell: powershell
+        run: |
+          Write-Host "Configuring RDP user and enabling the service..."
+          $password = $env:RDP_PASSWORD
+          if (-not $password) { 
+              Write-Error "The RDP_PASSWORD secret is not set. Please add it to your repository secrets."
+              exit 1 
+          }
+          net user runneruser $password /add
+          net localgroup administrators runneruser /add
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Host "✅ RDP service is ready."
+
+      - name: Create Secure TCP Tunnel
+        id: tunnel
+        shell: powershell
+        run: |
+          # --- This section has been completely revised for stability ---
+          
+          # We define a more robust set of SSH arguments:
+          # -o StrictHostKeyChecking=no   -> Automatically trusts the server key.
+          # -o TCPKeepAlive=yes            -> Prevents the connection from timing out due to inactivity.
+          # -o ExitOnForwardFailure=yes  -> Makes the command fail if the tunnel can't be created.
+          # -R 0:localhost:3389          -> THE CORE FIX: Asks for a random TCP port (0) instead of a web port (80).
+          $sshArguments = "-o StrictHostKeyChecking=no -o TCPKeepAlive=yes -o ExitOnForwardFailure=yes -R 0:localhost:3389 serveo.net"
+          
+          Write-Host "Starting robust SSH tunnel with command: ssh $sshArguments"
+          $sshProcess = Start-Process ssh -ArgumentList $sshArguments -NoNewWindow -PassThru -RedirectStandardError "ssh-output.txt"
+          
+          # Wait a little longer (15 seconds) to ensure the tunnel is fully established.
+          Start-Sleep -s 15
+          
+          # Read the log file from the ssh command.
+          $output = Get-Content -Path ssh-output.txt -Raw
+          
+          # Parse the output, looking for the correct TCP forwarding message.
+          # Example message: "Forwarding TCP from serveo.net:43965"
+          $match = $output | Select-String -Pattern "Forwarding TCP from serveo.net:(\d+)"
+          
+          if ($match) {
+              # The port number is the first (and only) captured group in our regex pattern.
+              $port = $match.Matches[0].Groups[1].Value
+              $publicUrl = "serveo.net:$port"
+              Write-Host "✅ Success! RDP Connection Address: $publicUrl" -ForegroundColor Green
+              
+              $connectionInfo = "RDP Address: $publicUrl `nUsername: runneruser`nPassword: (the one in your secrets)"
+              Set-Content -Path "connection-details.txt" -Value $connectionInfo
+              echo "url=$publicUrl" >> $env:GITHUB_OUTPUT
+          } else {
+              # Provide a much more helpful error message if it still fails.
+              Write-Error "CRITICAL: Could not establish a TCP tunnel. The output from SSH was not what was expected."
+              Write-Host "--- BEGIN SSH DIAGNOSTIC OUTPUT ---"
+              Write-Host $output
+              Write-Host "--- END SSH DIAGNOSTIC OUTPUT ---"
+              Stop-Process -Id $sshProcess.Id -Force -ErrorAction SilentlyContinue
+              exit 1
+          }
+
+      - name: Upload Connection Info
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-connection-info
+          path: connection-details.txt
+      
+      - name: Wait for Debug Session to End
+        run: |
+          echo ""
+          echo "✅ RDP session is ACTIVE. The tunnel is stable."
+          echo "Please connect to: ${{ steps.tunnel.outputs.url }}"
           echo "This session will automatically end in 20 minutes."
           Start-Sleep -Seconds 1200 # 20 minute timer
           echo "Timer expired. Closing session."
