@@ -24,13 +24,24 @@ jobs:
               Write-Error "The RDP_PASSWORD secret is not set. Please add it to your repository settings."
               exit 1 
           }
+          
+          # Create user and add to Admin group
           net user runneruser $password /add
           net localgroup administrators runneruser /add
+          
+          # --- FIX --- Add user to Remote Desktop Users group for explicit permission
+          net localgroup "Remote Desktop Users" runneruser /add
+          
+          # Enable RDP itself
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
-          # --- FIX --- This line disables Network Level Authentication (NLA) to allow the connection.
+          
+          # --- FIX --- Disable Network Level Authentication (NLA) for compatibility
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          
+          # Enable firewall rule
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Write-Host "✅ RDP service is ready."
+          
+          Write-Host "✅ RDP service is ready with enhanced permissions."
 
       - name: Establish Secure Tunnel using ngrok
         id: tunnel
@@ -74,7 +85,7 @@ jobs:
       - name: Wait for Session to End
         run: |
           echo "✅ RDP session is now ACTIVE."
-          echo "Please connect to the address from the downloaded artifact or the logs above: ${{ steps.tunnel.outputs.url }}"
+          echo "Please connect to the address from the downloaded artifact: ${{ steps.tunnel.outputs.url }}"
           echo "This session will automatically end in 20 minutes."
           Start-Sleep -Seconds 1200 # 20 minute timer
           echo "Timer expired. Shutting down the virtual machine."
