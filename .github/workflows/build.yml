@@ -7,7 +7,7 @@ jobs:
   rdp-debug-session:
     name: Start RDP Debug Session
     runs-on: windows-latest
-    timeout-minutes: 25 # Safety timeout
+    timeout-minutes: 25
 
     steps:
       - name: Configure RDP Service
@@ -28,13 +28,15 @@ jobs:
         id: tunnel
         shell: powershell
         run: |
-          # Use the built-in ssh command to create a reverse tunnel.
-          # This command forwards a random port on serveo.net to port 3389 (RDP) on the runner.
-          # We start this in a new process so the workflow can continue.
-          # We also capture the output of the ssh command to a file to find out the public address.
-          $sshProcess = Start-Process ssh -ArgumentList "-R 80:localhost:3389 serveo.net" -NoNewWindow -PassThru -RedirectStandardError "ssh-output.txt"
+          # --- THE FIX IS HERE ---
+          # We add "-o StrictHostKeyChecking=no" to automatically accept the server's key fingerprint.
+          # This prevents the command from getting stuck asking for user input.
+          $sshArguments = "-o StrictHostKeyChecking=no -R 80:localhost:3389 serveo.net"
           
-          # Wait a few seconds for the connection to be established and output to be written
+          Write-Host "Starting SSH tunnel with command: ssh $sshArguments"
+          $sshProcess = Start-Process ssh -ArgumentList $sshArguments -NoNewWindow -PassThru -RedirectStandardError "ssh-output.txt"
+          
+          # Wait a few seconds for the connection to be established
           Start-Sleep -s 10
           
           # Read the output file to find the connection URL
@@ -52,9 +54,12 @@ jobs:
               Set-Content -Path "connection-details.txt" -Value $connectionInfo
               echo "url=$publicUrl" >> $env:GITHUB_OUTPUT
           } else {
-              Write-Error "Could not establish SSH tunnel or parse the URL. Tearing down..."
+              # Improved error reporting
+              Write-Error "Could not establish SSH tunnel or parse the URL. The output from SSH was:"
+              Write-Host "--- SSH OUTPUT START ---"
+              Write-Host $output
+              Write-Host "--- SSH OUTPUT END ---"
               Stop-Process -Id $sshProcess.Id -Force
-              Get-Content -Path ssh-output.txt -Raw | Write-Host
               exit 1
           }
 
