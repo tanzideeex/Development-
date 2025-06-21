@@ -1,24 +1,27 @@
-name: Secure RDP via SSH Tunnel (Stable)
+name: Reliable RDP Debug Session
 
 on:
   workflow_dispatch:
 
 jobs:
-  rdp-debug-session:
-    name: Start RDP Debug Session
+  rdp-session:
+    name: Start RDP Session
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 25 # A safety timeout
 
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Configure RDP Service
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         shell: powershell
         run: |
-          Write-Host "Configuring RDP user and enabling the service..."
+          Write-Host "Configuring RDP user and firewall..."
           $password = $env:RDP_PASSWORD
           if (-not $password) { 
-              Write-Error "The RDP_PASSWORD secret is not set. Please add it to your repository secrets."
+              Write-Error "The RDP_PASSWORD secret is not set. Please add it to your repository settings."
               exit 1 
           }
           net user runneruser $password /add
@@ -27,53 +30,49 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Write-Host "✅ RDP service is ready."
 
-      - name: Create Secure TCP Tunnel
+      - name: Establish Secure Tunnel using ngrok
         id: tunnel
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         shell: powershell
         run: |
-          # Define robust SSH arguments for a stable TCP tunnel
-          $sshArguments = "-o StrictHostKeyChecking=no -o TCPKeepAlive=yes -o ExitOnForwardFailure=yes -R 0:localhost:3389 serveo.net"
+          # Download and prepare ngrok
+          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip -DestinationPath . -Force
           
-          Write-Host "Starting robust SSH tunnel with command: ssh $sshArguments"
-          $sshProcess = Start-Process ssh -ArgumentList $sshArguments -NoNewWindow -PassThru -RedirectStandardError "ssh-output.txt"
+          # Authenticate with ngrok
+          ./ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
           
-          # Wait for the tunnel to establish
-          Start-Sleep -s 15
+          # Start the TCP tunnel in the background
+          Start-Process -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389" -NoNewWindow
           
-          # Read the log file from the ssh command
-          $output = Get-Content -Path ssh-output.txt -Raw
+          # Wait for the tunnel to initialize
+          Start-Sleep -s 10
           
-          # Parse the output to find the correct TCP port
-          $match = $output | Select-String -Pattern "Forwarding TCP from serveo.net:(\d+)"
-          
-          if ($match) {
-              $port = $match.Matches[0].Groups[1].Value
-              $publicUrl = "serveo.net:$port"
+          # Get the public URL from ngrok's local API and clean it for RDP
+          $tunnels = (Invoke-RestMethod -Uri http://127.0.0.1:4040/api/tunnels).tunnels
+          if ($tunnels) {
+              $publicUrl = $tunnels[0].public_url.Replace("tcp://", "")
               Write-Host "✅ Success! RDP Connection Address: $publicUrl" -ForegroundColor Green
               
-              $connectionInfo = "RDP Address: $publicUrl`nUsername: runneruser`nPassword: (the one in your secrets)"
+              $connectionInfo = "RDP Address: $publicUrl`nUsername: runneruser`nPassword: (the one you set in secrets)"
               Set-Content -Path "connection-details.txt" -Value $connectionInfo
               echo "url=$publicUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           } else {
-              Write-Error "CRITICAL: Could not establish a TCP tunnel. The output from SSH was not what was expected."
-              Write-Host "--- BEGIN SSH DIAGNOSTIC OUTPUT ---"
-              Write-Host $output
-              Write-Host "--- END SSH DIAGNOSTIC OUTPUT ---"
-              Stop-Process -Id $sshProcess.Id -Force -ErrorAction SilentlyContinue
+              Write-Error "CRITICAL: Could not get ngrok tunnel URL. Is your NGROK_AUTH_TOKEN secret correct?"
               exit 1
           }
 
-      - name: Upload Connection Info
+      - name: Upload Connection Details as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: rdp-connection-info
           path: connection-details.txt
-      
-      - name: Wait for Debug Session to End
+
+      - name: Wait for Session to End
         run: |
-          echo ""
-          echo "✅ RDP session is ACTIVE. The tunnel is stable."
-          echo "Please connect to: ${{ steps.tunnel.outputs.url }}"
+          echo "✅ RDP session is now ACTIVE."
+          echo "Please connect to the address from the downloaded artifact: ${{ steps.tunnel.outputs.url }}"
           echo "This session will automatically end in 20 minutes."
-          Start-Sleep -Seconds 1200
-          echo "Timer expired. Closing session."
+          Start-Sleep -Seconds 1200 # 20 minute timer
+          echo "Timer expired. Shutting down the virtual machine."
